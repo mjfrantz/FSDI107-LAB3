@@ -27,6 +27,17 @@ app.set('views', __dirname + "/views");
 app.engine('html', ejs.renderFile);
 app.set('view engine', ejs);
 
+// Mongo & mongoose
+var mongoose = require('mongoose');
+mongoose.connect('mongodb://ThiIsAPassword:TheRealPassword@cluster0-shard-00-00-euadh.mongodb.net:27017,cluster0-shard-00-01-euadh.mongodb.net:27017,cluster0-shard-00-02-euadh.mongodb.net:27017/test?ssl=true&replicaSet=Cluster0-shard-0&authSource=admin' 
+    );
+
+// Db connection
+var db = mongoose.connection;
+
+// DB object constructor
+var itemDB;
+
 // Storage Options
 var items = [];
 var nextId = 0;
@@ -51,24 +62,65 @@ app.get('/about', (req, res) => {
 
 // Endpoint of REST Functionality
 
-
-
 app.get('/api/products', (req, res) => {
-    res.json(items);
+    itemDB.find({}, function(error, data){
+        if(error){
+            console.log("Error reading data", error)
+            res.status(500);
+            res.send(error);
+        }
+        res.json(data);
+    });
+});
+
+app.get('/api/products/:user', (req, res) => {
+    itemDB.find({ price : { $gte: 10 }}, function(error, data){
+        if(error){
+            console.log("Error reading data", error)
+            res.status(500);
+            res.send(error);
+        }
+        res.json(data);
+    });
 });
 
 app.post('/api/products', (req, res) => {
-    //get and assign ID 
-    var item = req.body;
-     item.id = nextId;
-     nextId += 1;
+    //get and assign ID  
+    var item = new itemDB(req.body);
 
-    //store
-     items.push(item);
+    // save the object to Db
+    item.save(function(error, savedItem){
+        if(error){
+            console.log("Error, item was not saved on Mongo", error);
+            res.status(500);
+            res.send(error);
+        }
+        console.log("Item saved!");
+        //send as a JSON
+        res.status = 201;
+        res.json(savedItem);
+    });
+});
 
-    //send as a JSON
-    res.status = 201;
-    res.json(item);
+//Listen to db connection events
+db.on('error', function (error) {
+    console.log("Error connection to Mongo Server", error);
+});
+
+db.on('open', function(){
+    console.log('Db is alive');
+
+    // Schemas
+    var itemSchema = mongoose.Schema({
+        title: String,
+        description: String,
+        price: Number,
+        image: String,
+        category: String,
+        user: String
+    });
+
+    itemDB = mongoose.model("itemsCh4", itemSchema);
 });
 
 app.listen(8080, function () {
